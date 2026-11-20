@@ -42,7 +42,9 @@ CREATE TABLE #SchemaColumns
     [Precision] tinyint NOT NULL,
     ScaleValue tinyint NOT NULL,
     IsNullable bit NOT NULL,
-    IsIdentity bit NOT NULL
+    IsIdentity bit NOT NULL,
+    DefaultConstraintName sysname NULL,
+    DefaultDefinition nvarchar(max) NULL
 );
 
 CREATE TABLE #ColumnPairs
@@ -70,6 +72,8 @@ CREATE TABLE #AlterScripts
     typ_windows nvarchar(100) NULL,
     type_web nvarchar(100) NULL,
     ProposedType nvarchar(100) NOT NULL,
+    ScriptDropDefault nvarchar(max) NULL,
+    ScriptAddDefault nvarchar(max) NULL,
     ScriptText nvarchar(max) NOT NULL
 );
 
@@ -100,6 +104,8 @@ DECLARE
     @WindowNullable bit, @WebNullable bit,
     @WindowIdentity bit, @WebIdentity bit,
     @WindowExistingType nvarchar(100), @WebExistingType nvarchar(100),
+    @WindowDefaultName sysname, @WebDefaultName sysname,
+    @WindowDefaultDefinition nvarchar(max), @WebDefaultDefinition nvarchar(max),
     @WindowChars int, @WebChars int, @CommonLength int,
     @WindowIntegerDigits int, @WebIntegerDigits int,
     @CommonIntegerDigits int, @CommonScale int, @CommonPrecision int,
@@ -122,7 +128,7 @@ DECLARE table_pairs CURSOR LOCAL FAST_FORWARD FOR
       AND NULLIF(LTRIM(RTRIM(cfg.db_dest)), N'') IS NOT NULL
       AND NULLIF(LTRIM(RTRIM(m.tab_window)), N'') IS NOT NULL
       AND NULLIF(LTRIM(RTRIM(m.tab_web)), N'') IS NOT NULL
-	  and cfg.cod_config = '9'
+	  and cfg.cod_config = '11'
 
 OPEN table_pairs;
 FETCH NEXT FROM table_pairs INTO
@@ -139,14 +145,18 @@ BEGIN
     SET @Sql = N'
         INSERT #SchemaColumns
             (SideCode, DatabaseName, TableName, ColumnName, BaseType, MaxLength,
-             [Precision], ScaleValue, IsNullable, IsIdentity)
+             [Precision], ScaleValue, IsNullable, IsIdentity,
+             DefaultConstraintName, DefaultDefinition)
         SELECT @p_side, @p_db, t.name, c.name, bt.name, c.max_length,
-               c.[precision], c.scale, c.is_nullable, c.is_identity
+               c.[precision], c.scale, c.is_nullable, c.is_identity,
+               dc.name, dc.definition
         FROM ' + QUOTENAME(@DatabaseName) + N'.sys.tables AS t
         INNER JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.schemas AS s ON s.schema_id = t.schema_id
         INNER JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.columns AS c ON c.object_id = t.object_id
         INNER JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.types AS bt
             ON bt.user_type_id = c.system_type_id AND bt.is_user_defined = 0
+        LEFT JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.default_constraints AS dc
+            ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
         WHERE s.name = N''dbo'' AND t.name = @p_table;';
     EXEC sys.sp_executesql @Sql, N'@p_side char(1),@p_db sysname,@p_table sysname',
         @p_side = @Side, @p_db = @DatabaseName, @p_table = @TableName;
@@ -169,14 +179,18 @@ BEGIN
     SET @Sql = N'
         INSERT #SchemaColumns
             (SideCode, DatabaseName, TableName, ColumnName, BaseType, MaxLength,
-             [Precision], ScaleValue, IsNullable, IsIdentity)
+             [Precision], ScaleValue, IsNullable, IsIdentity,
+             DefaultConstraintName, DefaultDefinition)
         SELECT @p_side, @p_db, t.name, c.name, bt.name, c.max_length,
-               c.[precision], c.scale, c.is_nullable, c.is_identity
+               c.[precision], c.scale, c.is_nullable, c.is_identity,
+               dc.name, dc.definition
         FROM ' + QUOTENAME(@DatabaseName) + N'.sys.tables AS t
         INNER JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.schemas AS s ON s.schema_id = t.schema_id
         INNER JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.columns AS c ON c.object_id = t.object_id
         INNER JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.types AS bt
             ON bt.user_type_id = c.system_type_id AND bt.is_user_defined = 0
+        LEFT JOIN ' + QUOTENAME(@DatabaseName) + N'.sys.default_constraints AS dc
+            ON dc.parent_object_id = c.object_id AND dc.parent_column_id = c.column_id
         WHERE s.name = N''dbo'' AND t.name = @p_table;';
     EXEC sys.sp_executesql @Sql, N'@p_side char(1),@p_db sysname,@p_table sysname',
         @p_side = @Side, @p_db = @DatabaseName, @p_table = @TableName;
@@ -256,13 +270,22 @@ BEGIN
 
     WHILE @@FETCH_STATUS = 0
     BEGIN
+        SET @WindowDefaultName = NULL;
+        SET @WebDefaultName = NULL;
+        SET @WindowDefaultDefinition = NULL;
+        SET @WebDefaultDefinition = NULL;
+
         SELECT @WindowType = BaseType, @WindowLength = MaxLength,
                @WindowPrecision = [Precision], @WindowScale = ScaleValue,
-               @WindowNullable = IsNullable, @WindowIdentity = IsIdentity
+               @WindowNullable = IsNullable, @WindowIdentity = IsIdentity,
+               @WindowDefaultName = DefaultConstraintName,
+               @WindowDefaultDefinition = DefaultDefinition
         FROM #SchemaColumns WHERE SideCode = 'W' AND ColumnName = @WindowColumn;
         SELECT @WebType = BaseType, @WebLength = MaxLength,
                @WebPrecision = [Precision], @WebScale = ScaleValue,
-               @WebNullable = IsNullable, @WebIdentity = IsIdentity
+               @WebNullable = IsNullable, @WebIdentity = IsIdentity,
+               @WebDefaultName = DefaultConstraintName,
+               @WebDefaultDefinition = DefaultDefinition
         FROM #SchemaColumns WHERE SideCode = 'B' AND ColumnName = @WebColumn;
 
         SET @WindowExistingType = CASE
@@ -403,12 +426,32 @@ BEGIN
                                 AND @WindowPrecision = @CommonPrecision AND @WindowScale = @CommonScale)
                     BEGIN
                         INSERT #AlterScripts
-                            (ConfigCode, DatabaseName, TableName, ColumnName, typ_windows, type_web, ProposedType, ScriptText)
+                            (ConfigCode, DatabaseName, TableName, ColumnName, typ_windows, type_web,
+                             ProposedType, ScriptDropDefault, ScriptAddDefault, ScriptText)
                         VALUES
-                            (@ConfigCode, @WindowDatabase, @WindowTable, @WindowColumn, @WindowExistingType, @WebExistingType, @CommonType,
-                             N'ALTER TABLE ' + QUOTENAME(@WindowDatabase) + N'.dbo.' + QUOTENAME(@WindowTable)
+                            (@ConfigCode, @WindowDatabase, @WindowTable, @WindowColumn, @WindowExistingType, @WebExistingType,
+                             @CommonType,
+                             CASE WHEN @WindowDefaultName IS NULL THEN NULL
+                                  ELSE N'IF EXISTS (SELECT 1 FROM ' + QUOTENAME(@WindowDatabase)
+                                       + N'.sys.default_constraints WHERE name = N'''
+                                       + REPLACE(@WindowDefaultName, N'''', N'''''')
+                                       + N''' AND parent_object_id = OBJECT_ID(N'''
+                                       + REPLACE(QUOTENAME(@WindowDatabase) + N'.dbo.' + QUOTENAME(@WindowTable), N'''', N'''''')
+                                       + N''')) BEGIN ALTER TABLE ' + QUOTENAME(@WindowDatabase) + N'.dbo.' + QUOTENAME(@WindowTable)
+                                       + N' DROP CONSTRAINT ' + QUOTENAME(@WindowDefaultName) + N'; END;' END,
+                             CASE WHEN @WindowDefaultName IS NULL THEN NULL
+                                  ELSE N'IF NOT EXISTS (SELECT 1 FROM ' + QUOTENAME(@WindowDatabase)
+                                       + N'.sys.default_constraints WHERE name = N'''
+                                       + REPLACE(@WindowDefaultName, N'''', N'''''')
+                                       + N''' AND parent_object_id = OBJECT_ID(N'''
+                                       + REPLACE(QUOTENAME(@WindowDatabase) + N'.dbo.' + QUOTENAME(@WindowTable), N'''', N'''''')
+                                       + N''')) BEGIN ALTER TABLE ' + QUOTENAME(@WindowDatabase) + N'.dbo.' + QUOTENAME(@WindowTable)
+                                       + N' ADD CONSTRAINT ' + QUOTENAME(@WindowDefaultName)
+                                       + N' DEFAULT ' + @WindowDefaultDefinition + N' FOR ' + QUOTENAME(@WindowColumn) + N'; END;' END,
+                             N'BEGIN TRY ALTER TABLE ' + QUOTENAME(@WindowDatabase) + N'.dbo.' + QUOTENAME(@WindowTable)
                              + N' ALTER COLUMN ' + QUOTENAME(@WindowColumn) + N' ' + @CommonType
-                             + CASE WHEN @WindowNullable = 1 THEN N' NULL;' ELSE N' NOT NULL;' END);
+                             + CASE WHEN @WindowNullable = 1 THEN N' NULL;' ELSE N' NOT NULL;' END
+                             + N' END TRY BEGIN CATCH PRINT N''Erreur ALTER COLUMN Windows : '' + ERROR_MESSAGE(); END CATCH;');
                     END;
 
                     IF NOT (@WebType = N'varchar' AND
@@ -418,12 +461,32 @@ BEGIN
                                 AND @WebPrecision = @CommonPrecision AND @WebScale = @CommonScale)
                     BEGIN
                         INSERT #AlterScripts
-                            (ConfigCode, DatabaseName, TableName, ColumnName, typ_windows, type_web, ProposedType, ScriptText)
+                            (ConfigCode, DatabaseName, TableName, ColumnName, typ_windows, type_web,
+                             ProposedType, ScriptDropDefault, ScriptAddDefault, ScriptText)
                         VALUES
-                            (@ConfigCode, @WebDatabase, @WebTable, @WebColumn, @WindowExistingType, @WebExistingType, @CommonType,
-                             N'ALTER TABLE ' + QUOTENAME(@WebDatabase) + N'.dbo.' + QUOTENAME(@WebTable)
+                            (@ConfigCode, @WebDatabase, @WebTable, @WebColumn, @WindowExistingType, @WebExistingType,
+                             @CommonType,
+                             CASE WHEN @WebDefaultName IS NULL THEN NULL
+                                  ELSE N'IF EXISTS (SELECT 1 FROM ' + QUOTENAME(@WebDatabase)
+                                       + N'.sys.default_constraints WHERE name = N'''
+                                       + REPLACE(@WebDefaultName, N'''', N'''''')
+                                       + N''' AND parent_object_id = OBJECT_ID(N'''
+                                       + REPLACE(QUOTENAME(@WebDatabase) + N'.dbo.' + QUOTENAME(@WebTable), N'''', N'''''')
+                                       + N''')) BEGIN ALTER TABLE ' + QUOTENAME(@WebDatabase) + N'.dbo.' + QUOTENAME(@WebTable)
+                                       + N' DROP CONSTRAINT ' + QUOTENAME(@WebDefaultName) + N'; END;' END,
+                             CASE WHEN @WebDefaultName IS NULL THEN NULL
+                                  ELSE N'IF NOT EXISTS (SELECT 1 FROM ' + QUOTENAME(@WebDatabase)
+                                       + N'.sys.default_constraints WHERE name = N'''
+                                       + REPLACE(@WebDefaultName, N'''', N'''''')
+                                       + N''' AND parent_object_id = OBJECT_ID(N'''
+                                       + REPLACE(QUOTENAME(@WebDatabase) + N'.dbo.' + QUOTENAME(@WebTable), N'''', N'''''')
+                                       + N''')) BEGIN ALTER TABLE ' + QUOTENAME(@WebDatabase) + N'.dbo.' + QUOTENAME(@WebTable)
+                                       + N' ADD CONSTRAINT ' + QUOTENAME(@WebDefaultName)
+                                       + N' DEFAULT ' + @WebDefaultDefinition + N' FOR ' + QUOTENAME(@WebColumn) + N'; END;' END,
+                             N'BEGIN TRY ALTER TABLE ' + QUOTENAME(@WebDatabase) + N'.dbo.' + QUOTENAME(@WebTable)
                              + N' ALTER COLUMN ' + QUOTENAME(@WebColumn) + N' ' + @CommonType
-                             + CASE WHEN @WebNullable = 1 THEN N' NULL;' ELSE N' NOT NULL;' END);
+                             + CASE WHEN @WebNullable = 1 THEN N' NULL;' ELSE N' NOT NULL;' END
+                             + N' END TRY BEGIN CATCH PRINT N''Erreur ALTER COLUMN Web : '' + ERROR_MESSAGE(); END CATCH;');
                     END;
                 END;
             END;
@@ -455,7 +518,7 @@ CLOSE table_pairs;
 DEALLOCATE table_pairs;
 
 SELECT ScriptId, ConfigCode, DatabaseName, TableName, ColumnName,
-       typ_windows, type_web, ProposedType, ScriptText
+       typ_windows, type_web, ProposedType, ScriptDropDefault, ScriptText, ScriptAddDefault
 FROM #AlterScripts
 ORDER BY ConfigCode, TableName, ColumnName, DatabaseName;
 
