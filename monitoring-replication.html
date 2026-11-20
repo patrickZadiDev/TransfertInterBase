@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Maquette de suivi de la réplication des données entre les applications Windows et Web.">
+  <title>Suivi des réplications — Agromex</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172b4d;
+      --muted: #6d7d91;
+      --line: #e5ebf2;
+      --canvas: #f4f7fb;
+      --surface: #fff;
+      --nav: #132844;
+      --blue: #3978db;
+      --green: #198754;
+      --amber: #bd7a09;
+      --red: #c24145;
+      font-family: Inter, "Segoe UI", Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; color: var(--ink); background: var(--canvas); font-size: 14px; }
+    button, input, select { font: inherit; }
+    .app { min-height: 100vh; display: grid; grid-template-columns: 238px minmax(0, 1fr); }
+    aside { background: var(--nav); color: #d8e3f2; padding: 25px 16px; }
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 30px; color: white; font-size: 17px; font-weight: 700; }
+    .brand-mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: #3981e8; color: white; font-size: 18px; }
+    .nav-label { padding: 9px 11px; color: #91a5c0; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+    nav a { display: flex; align-items: center; gap: 12px; padding: 11px; margin: 3px 0; color: #c5d2e3; text-decoration: none; border-radius: 8px; }
+    nav a.active { background: #253f62; color: white; }
+    nav .ico { width: 18px; text-align: center; font-size: 16px; }
+    .side-note { margin: 28px 8px 0; padding: 14px; border: 1px solid #314a69; border-radius: 10px; color: #b9c9dd; font-size: 12px; line-height: 1.5; }
+    .side-note strong { display: block; margin-bottom: 5px; color: white; }
+    main { min-width: 0; }
+    header { height: 72px; padding: 0 34px; display: flex; justify-content: space-between; align-items: center; background: var(--surface); border-bottom: 1px solid var(--line); }
+    .crumb { color: var(--muted); font-size: 13px; }
+    .crumb strong { color: var(--ink); font-weight: 600; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .demo-tag { padding: 7px 10px; border-radius: 20px; color: #75500d; background: #fff4d7; font-size: 11px; font-weight: 700; }
+    .avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #e4edfa; color: #346bb4; font-weight: 700; }
+    .content { max-width: 1500px; margin: 0 auto; padding: 29px 34px 44px; }
+    .title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 23px; }
+    h1 { margin: 0 0 7px; font-size: 25px; letter-spacing: -.025em; }
+    .subtitle { color: var(--muted); }
+    .updated { color: var(--muted); font-size: 12px; white-space: nowrap; padding-top: 5px; }
+    .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+    .card, .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 2px 7px #1a36500a; }
+    .metric { min-height: 126px; padding: 17px 18px; }
+    .metric-head { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 12px; }
+    .metric-icon { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 8px; background: #eef4fd; color: var(--blue); }
+    .metric-value { margin: 12px 0 4px; font-size: 27px; line-height: 1; font-weight: 700; letter-spacing: -.03em; }
+    .metric-foot { color: var(--muted); font-size: 11px; }
+    .metric-foot.good { color: var(--green); }
+    .metric-foot.warn { color: var(--amber); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(290px, .85fr); gap: 16px; margin-bottom: 18px; }
+    .panel { padding: 19px 20px; }
+    .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 17px; }
+    h2 { margin: 0; font-size: 15px; }
+    .panel-sub { margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .period { border: 1px solid var(--line); border-radius: 7px; background: white; padding: 7px 9px; color: #52647b; font-size: 11px; }
+    .flow { display: grid; grid-template-columns: 1fr 48px 1fr; align-items: center; gap: 8px; padding: 5px 0 13px; }
+    .node { min-width: 0; padding: 13px; border: 1px solid var(--line); border-radius: 9px; }
+    .node-top { display: flex; align-items: center; gap: 9px; }
+    .node-icon { width: 33px; height: 33px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; background: #edf4ff; color: #3577d4; font-size: 17px; }
+    .node strong { display: block; font-size: 13px; }
+    .node small { display: block; color: var(--muted); margin-top: 3px; font-size: 10px; }
+    .node-state { margin-top: 12px; display: flex; align-items: center; gap: 6px; color: var(--green); font-size: 11px; }
+    .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+    .arrows { text-align: center; color: #7b95b8; font-size: 18px; line-height: 1.7; }
+    .arrows small { display: block; color: var(--muted); font-size: 9px; }
+    .queue { padding: 13px 14px; border-radius: 9px; background: #f7f9fc; display: grid; grid-template-columns: 1fr auto; gap: 7px; font-size: 11px; }
+    .queue span { color: var(--muted); }
+    .queue strong { font-variant-numeric: tabular-nums; }
+    .queue .ok { color: var(--green); }
+    .bars { height: 147px; display: flex; align-items: end; justify-content: space-between; gap: 8px; padding: 4px 2px 0; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0, transparent 35px, #edf1f6 36px); }
+    .bar-group { height: 100%; flex: 1; display: flex; align-items: end; justify-content: center; gap: 4px; position: relative; }
+    .bar { width: min(12px, 40%); border-radius: 4px 4px 0 0; background: #75a8ed; min-height: 3px; }
+    .bar.err { background: #e7a3a2; }
+    .hours { display: flex; justify-content: space-between; color: var(--muted); font-size: 9px; padding: 7px 2px 0; }
+    .legend { display: flex; gap: 15px; color: var(--muted); font-size: 10px; margin-top: 12px; }
+    .legend i { width: 8px; height: 8px; display: inline-block; border-radius: 2px; background: #75a8ed; margin-right: 5px; }
+    .legend .errors { background: #e7a3a2; }
+    .table-panel { padding: 0; overflow: hidden; }
+    .table-head { padding: 18px 20px 14px; display: flex; align-items: center; justify-content: space-between; gap: 15px; }
+    .filters { display: flex; gap: 8px; }
+    .filters input, .filters select { height: 34px; border: 1px solid var(--line); border-radius: 7px; padding: 0 10px; color: #465971; background: white; outline-color: #91b8f1; font-size: 11px; }
+    .filters input { width: 190px; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
+    th { padding: 10px 16px; color: #728198; background: #f8fafc; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); text-transform: uppercase; letter-spacing: .04em; font-size: 9px; font-weight: 700; }
+    td { padding: 12px 16px; border-bottom: 1px solid #edf1f5; color: #40536b; font-size: 11px; }
+    tbody tr:last-child td { border-bottom: 0; }
+    td:first-child { color: var(--ink); font-weight: 600; }
+    .pill { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 5px 8px; font-size: 10px; font-weight: 600; }
+    .pill.ok { color: #167245; background: #e8f6ef; }
+    .pill.error { color: #a93136; background: #fff0ef; }
+    .pill.pending { color: #91600b; background: #fff4dc; }
+    .code { font-family: ui-monospace, Consolas, monospace; }
+    .empty { display: none; text-align: center; padding: 25px; color: var(--muted); }
+    .table-foot { padding: 12px 20px; color: var(--muted); border-top: 1px solid var(--line); font-size: 10px; }
+    @media (max-width: 1050px) { .app { grid-template-columns: 205px minmax(0,1fr); } .content { padding: 24px 22px; } header { padding: 0 22px; } .cards { grid-template-columns: repeat(2,1fr); } }
+    @media (max-width: 760px) { .app { display: block; } aside { padding: 12px 14px; } .brand { padding: 0 4px 10px; } nav { display: flex; overflow-x: auto; } .nav-label, .side-note, nav a:not(.active) { display: none; } nav a { flex: 0 0 auto; padding: 9px 11px; margin: 0 3px 0 0; } header { height: 58px; padding: 0 16px; } .content { padding: 22px 15px 30px; } .title-row { flex-direction: column; } .layout { grid-template-columns: 1fr; } }
+    @media (max-width: 480px) { .cards { grid-template-columns: 1fr 1fr; gap: 9px; } .metric { min-height: 112px; padding: 13px; } .metric-value { font-size: 23px; } .metric-head { font-size: 10px; } .table-head { align-items: flex-start; flex-direction: column; } .filters { width: 100%; } .filters input { flex: 1; min-width: 0; } .flow { grid-template-columns: 1fr 28px 1fr; gap: 4px; } .node { padding: 9px; } .node-icon { display: none; } .demo-tag { font-size: 9px; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside aria-label="Navigation principale">
+      <div class="brand"><span class="brand-mark">A</span> Agromex <span style="font-size:10px;color:#91a5c0;font-weight:500">DATA</span></div>
+      <div class="nav-label">Espace de travail</div>
+      <nav>
+        <a href="#overview"><span class="ico">▦</span> Vue générale</a>
+        <a href="#events" class="active"><span class="ico">⇄</span> Réplication</a>
+        <a href="#events"><span class="ico">▤</span> Historique</a>
+        <a href="#errors"><span class="ico">⚠</span> Erreurs</a>
+        <a href="#settings"><span class="ico">⚙</span> Paramétrage</a>
+      </nav>
+      <div class="side-note"><strong>Environnement</strong>Base intermédiaire<br>Synchronisation SQL Service Broker</div>
+    </aside>
+    <main>
+      <header>
+        <div class="crumb">Administration&nbsp; / &nbsp;<strong>Suivi des réplications</strong></div>
+        <div class="header-right"><span class="demo-tag">MAQUETTE · DONNÉES FICTIVES</span><span class="avatar" aria-label="Utilisateur">AP</span></div>
+      </header>
+      <div class="content" id="overview">
+        <div class="title-row">
+          <div><h1>Suivi des réplications</h1><div class="subtitle">État des échanges de données entre les applications Windows et Web.</div></div>
+          <div class="updated">Dernière activité&nbsp;: aujourd'hui à 14:32:08</div>
+        </div>
+
+        <section class="cards" aria-label="Indicateurs de réplication">
+          <article class="card metric"><div class="metric-head">Messages en attente <span class="metric-icon">↻</span></div><div class="metric-value">12</div><div class="metric-foot">Dans la file Service Broker</div></article>
+          <article class="card metric"><div class="metric-head">Traités aujourd'hui <span class="metric-icon">✓</span></div><div class="metric-value">1 284</div><div class="metric-foot good">+ 8,4 % par rapport à hier</div></article>
+          <article class="card metric"><div class="metric-head">En erreur <span class="metric-icon" style="color:#c24145;background:#fff0ef">!</span></div><div class="metric-value">3</div><div class="metric-foot warn">2 erreurs à examiner</div></article>
+          <article class="card metric"><div class="metric-head">Délai moyen <span class="metric-icon">◷</span></div><div class="metric-value">1,8 <span style="font-size:14px;font-weight:600">s</span></div><div class="metric-foot">De la file au traitement</div></article>
+        </section>
+
+        <section class="layout" aria-label="État des systèmes et activité">
+          <article class="panel">
+            <div class="panel-head"><div><h2>État des connexions</h2><div class="panel-sub">Flux entre les bases configurées</div></div><span class="pill ok"><span class="dot"></span> Opérationnel</span></div>
+            <div class="flow">
+              <div class="node"><div class="node-top"><span class="node-icon">▣</span><div><strong>Application Windows</strong><small>Base source · Windows</small></div></div><div class="node-state"><span class="dot"></span> Connectée</div></div>
+              <div class="arrows" aria-label="Réplication bidirectionnelle">⇄<small>12 en attente</small></div>
+              <div class="node"><div class="node-top"><span class="node-icon">▤</span><div><strong>Application Web</strong><small>Base cible · Web</small></div></div><div class="node-state"><span class="dot"></span> Connectée</div></div>
+            </div>
+            <div class="queue"><span>File Service Broker</span><strong class="ok">Activée</strong><span>Dernier message reçu</span><strong>14:32:08</strong><span>Lecteurs actifs</span><strong>1 / 1</strong></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h2>Activité des dernières heures</h2><div class="panel-sub">Messages traités et erreurs</div></div><select class="period" aria-label="Période"><option>8 dernières heures</option></select></div>
+            <div class="bars" role="img" aria-label="Graphique fictif des messages traités et des erreurs sur huit heures">
+              <div class="bar-group"><i class="bar" style="height:38%"></i><i class="bar err" style="height:4%"></i></div><div class="bar-group"><i class="bar" style="height:48%"></i><i class="bar err" style="height:4%"></i></div><div class="bar-group"><i class="bar" style="height:42%"></i><i class="bar err" style="height:10%"></i></div><div class="bar-group"><i class="bar" style="height:68%"></i><i class="bar err" style="height:4%"></i></div><div class="bar-group"><i class="bar" style="height:57%"></i><i class="bar err" style="height:4%"></i></div><div class="bar-group"><i class="bar" style="height:82%"></i><i class="bar err" style="height:15%"></i></div><div class="bar-group"><i class="bar" style="height:72%"></i><i class="bar err" style="height:4%"></i></div><div class="bar-group"><i class="bar" style="height:94%"></i><i class="bar err" style="height:4%"></i></div>
+            </div>
+            <div class="hours"><span>07:00</span><span>09:00</span><span>11:00</span><span>13:00</span><span>15:00</span></div>
+            <div class="legend"><span><i></i>Traités</span><span><i class="errors"></i>En erreur</span></div>
+          </article>
+        </section>
+
+        <section class="panel table-panel" id="events" aria-label="Derniers événements de réplication">
+          <div class="table-head"><div><h2>Derniers événements</h2><div class="panel-sub">Journal des traitements et messages de réplication</div></div><div class="filters"><input id="search" type="search" placeholder="Rechercher une table…" aria-label="Rechercher une table"><select id="status" aria-label="Filtrer par statut"><option value="all">Tous les statuts</option><option value="success">Succès</option><option value="error">Erreur</option><option value="pending">En attente</option></select></div></div>
+          <div class="table-wrap"><table><thead><tr><th>Table</th><th>Sens</th><th>Statut</th><th>Code</th><th>Message</th><th>Durée</th><th>Date / heure</th></tr></thead>
+            <tbody id="eventRows">
+              <tr data-status="success"><td>wlot</td><td>Windows → Web</td><td><span class="pill ok">● Succès</span></td><td class="code">200</td><td>wlot terminée avec succès</td><td>0,8 s</td><td>20/11/2026 14:32:08</td></tr>
+              <tr data-status="error" id="errors"><td>b00000955</td><td>Web → Windows</td><td><span class="pill error">● Erreur</span></td><td class="code">51015</td><td>Extension Web sans ligne parente Windows.</td><td>0,3 s</td><td>20/11/2026 14:31:54</td></tr>
+              <tr data-status="success"><td>historique_transactions</td><td>Windows → Web</td><td><span class="pill ok">● Succès</span></td><td class="code">200</td><td>historique_transactions terminée avec succès</td><td>2,1 s</td><td>20/11/2026 14:31:49</td></tr>
+              <tr data-status="pending"><td>clients</td><td>Web → Windows</td><td><span class="pill pending">● En attente</span></td><td class="code">—</td><td>Message présent dans la file de traitement</td><td>—</td><td>20/11/2026 14:31:42</td></tr>
+              <tr data-status="error"><td>b00001592</td><td>Windows → Web</td><td><span class="pill error">● Erreur</span></td><td class="code">51000</td><td>Configuration ou correspondance introuvable.</td><td>0,1 s</td><td>20/11/2026 14:30:17</td></tr>
+              <tr data-status="success"><td>factures</td><td>Web → Windows</td><td><span class="pill ok">● Succès</span></td><td class="code">200</td><td>factures terminée avec succès</td><td>1,4 s</td><td>20/11/2026 14:29:58</td></tr>
+            </tbody></table><div class="empty" id="empty">Aucun événement ne correspond à ces critères.</div></div>
+          <div class="table-foot" id="rowCount">6 événements affichés · données de démonstration</div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+    // Les filtres sont locaux : cette maquette n'est connectée à aucune base SQL.
+    const search = document.getElementById('search');
+    const status = document.getElementById('status');
+    const rows = [...document.querySelectorAll('#eventRows tr')];
+    const empty = document.getElementById('empty');
+    const count = document.getElementById('rowCount');
+    function filterRows() {
+      const query = search.value.trim().toLocaleLowerCase('fr');
+      let visible = 0;
+      rows.forEach(row => {
+        const matchesText = row.innerText.toLocaleLowerCase('fr').includes(query);
+        const matchesStatus = status.value === 'all' || row.dataset.status === status.value;
+        row.hidden = !(matchesText && matchesStatus);
+        if (!row.hidden) visible++;
+      });
+      empty.style.display = visible ? 'none' : 'block';
+      count.textContent = `${visible} événement${visible > 1 ? 's' : ''} affiché${visible > 1 ? 's' : ''} · données de démonstration`;
+    }
+    search.addEventListener('input', filterRows);
+    status.addEventListener('change', filterRows);
+  </script>
+</body>
+</html>
